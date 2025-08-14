@@ -11,4 +11,4 @@ Player_002 also can handle the file tree as such: "Up"/"Down" to move up and dow
 In Player_002 moving up and down songs using "W" and "S" will not go past the folder that of whose song is currently playing. Depending on the current collapse/expansion of folders, using the arrow keys may result in skipping folders. Using left and right arrow keys when playing a song will reset the song back to the beginning in most cases.
 
 Player_003 will be focused on better graphics. No new functionality was added. If any problems arise, please let me know.
-If you have any "It doesn't works on my machine problems, I will not be able to fix them. Please find a solution yourself."
+If you have any "It doesn't works on my machine" problems, I will not be able to fix them. Please find a solution yourself.
