@@ -14,4 +14,6 @@ Player_003 will be focused on better graphics. No new functionality was added. I
 
 Player_004 has a queue system. Using W and S will not automatically start the selected song. Pressing P will play the selected song. Pressing Q on a selected song will add it to the queue. Pressing X on a selected song in the queue will remove it from the queue.
 
+Player_005 has a custom window feature. Press C to use. Everything else is self explanatory.
+
 If you have any "It doesn't works on my machine" problems, I will not be able to fix them. Please find a solution yourself.
