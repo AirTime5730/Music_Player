@@ -23,8 +23,12 @@ BUTTON_HOVER = "#3FCF6D"
 pygame.mixer.init()
 current_song = None
 paused = False
+pause_cond = False  # True = playing, False = paused
 start_time = 0
 song_length = 0  # seconds
+
+# Resume positions: {song_path: last_position_seconds}
+resume_positions = {}
 
 # Queue system
 play_queue = []
@@ -48,12 +52,17 @@ def get_song_length(path):
 
 # --- Core playback ---
 def play_song_from_path(path, position=0):
-    global current_song, paused, start_time, song_length
+    global current_song, paused, start_time, song_length, pause_cond
     current_song = os.path.basename(path)
     song_length = get_song_length(path)
+
+    if path in resume_positions and position == 0:
+        position = resume_positions[path]
+
     pygame.mixer.music.load(path)
     pygame.mixer.music.play(start=position)
     paused = False
+    pause_cond = True  # now playing
     start_time = time.time() - position
     display_name = format_song_title(current_song)
     song_title_label.config(text=display_name)
@@ -62,15 +71,29 @@ def play_song_from_path(path, position=0):
 
 def toggle_play_pause():
     global paused, start_time
+    path = find_path_of_current_selection()
+    if not path and current_song:
+        path = find_path_by_name(current_song)
+
     if pygame.mixer.music.get_busy() and not paused:
+        save_resume_position(path)
         pygame.mixer.music.pause()
         paused = True
         play_pause_button.config(text="▶ Play")
-    elif paused:
-        pygame.mixer.music.unpause()
-        paused = False
-        start_time = time.time() - (seek_bar.get() / 100) * song_length
-        play_pause_button.config(text="⏸ Pause")
+    elif paused and path:
+        pos = resume_positions.get(path, 0)
+        play_song_from_path(path, position=pos)
+
+def save_resume_position(path):
+    global paused, pause_cond
+    if not path or song_length <= 0:
+        return
+    elapsed = time.time() - start_time if not paused else (seek_bar.get() / 100) * song_length
+    resume_positions[path] = max(0, min(elapsed, song_length))
+    pygame.mixer.music.pause()
+    paused = True
+    pause_cond = False  # now paused
+    play_pause_button.config(text="▶ Play")
 
 def seek(seconds_delta):
     if current_song and song_length > 0:
@@ -110,6 +133,10 @@ def update_seek_bar():
 # --- Queue handling ---
 def handle_song_end():
     global play_queue, queue_origin
+    path = find_path_by_name(current_song)
+    if path in resume_positions:
+        del resume_positions[path]  # reset resume when fully played
+
     if play_queue:
         next_song = play_queue.pop(0)
         update_queue_view()
@@ -154,10 +181,7 @@ def scan_music_directory(base_path):
                             values=(full_path, depth + 1, song_index))
                 song_index += 1
 
-# --- Tree selection ---
-def on_tree_select(event):
-    pass
-
+# --- Helpers ---
 def find_path_of_current_selection():
     sel = tree.selection()
     if not sel:
@@ -165,9 +189,18 @@ def find_path_of_current_selection():
     fullpath, _, index = tree.item(sel[0], "values")
     return fullpath if int(index) >= 0 else None
 
+def find_path_by_name(name):
+    for folder, songs in folder_structure.items():
+        for song in songs:
+            if os.path.basename(song) == name:
+                return song
+    return None
+
+# --- Play ---
 def play_selected_song():
     path = find_path_of_current_selection()
     if path:
+        save_resume_position(path)  # save current before switching
         play_song_from_path(path)
 
 # --- Queue add/remove ---
@@ -195,7 +228,7 @@ def remove_from_queue():
             play_queue.remove(song_path)
     update_queue_view()
 
-# --- Folder navigation based on current playing song ---
+# --- Folder navigation ---
 def play_next_in_folder():
     if not current_song:
         return
@@ -216,7 +249,7 @@ def play_prev_in_folder():
                     play_song_from_path(songs[idx - 1])
                 return
 
-# --- Navigation keys for selection ---
+# --- Navigation keys ---
 def move_selection(direction):
     sel = tree.selection()
     if not sel:
@@ -245,7 +278,14 @@ def on_key_press_tree(event):
     elif key == "r":
         randomize_and_play()
     elif key == "p":
-        play_selected_song()
+        path = find_path_of_current_selection()
+        if pause_cond:  
+            # If playing, just save position & pause (do not start a new song)
+            save_resume_position(path)
+        else:
+            # If paused, resume from last position
+            pos = resume_positions.get(path, 0)
+            play_song_from_path(path, position=pos)
     elif key == "q":
         add_to_queue()
     elif key == "x":
@@ -319,7 +359,7 @@ randomize_button = ttk.Button(right_frame, text="🔀 Random", command=randomize
 randomize_button.pack(side="bottom", pady=10, padx=10, anchor="e")
 
 # Bindings
-tree.bind("<<TreeviewSelect>>", on_tree_select)
+tree.bind("<<TreeviewSelect>>", lambda e: None)
 root.bind("w", on_key_press_tree)
 root.bind("s", on_key_press_tree)
 root.bind("a", on_key_press_tree)
